@@ -1,0 +1,208 @@
+#include "first.h"
+
+//call function to create a child node consisting of a char 
+//and initialize each spot in the child array to NULL
+node *makeNode(char c){
+	struct node *temp=NULL;
+	temp = (node*)malloc(sizeof(node));
+	if (temp){
+		int i;
+		temp->data=c;
+		temp->isword = 0, temp->occur=0, temp->prefix=0, temp->numChild=0;
+		for (i=0; i<26; i++){
+			temp->child[i]=NULL;
+		}
+	}
+	return temp;
+}
+
+//recursive function to traverse the trie and print corresponding 
+//occurrence and prefix counts as well as the word to an output file
+void traverse(node*temp, char word[200], int size){
+	if(temp==NULL){
+		return;
+	}
+	if(temp->isword){
+		
+		word[size]='\0';
+		fprintf(outputFile, "%s %d %d\n", word, temp->occur, temp->prefix);
+	}
+	int i;
+	for(i=0; i<26; i++){
+		if(temp->child[i]){
+			
+			word[size]='a'+i;
+			traverse(temp->child[i], word, size+1);
+		}
+	}
+}
+
+void traverseToFree(node*root){
+	int i;
+	for(i=0; i<26; i++){
+		if(root->child[i]){
+			
+			traverseToFree(root->child[i]);
+			free(root->child[i]);
+			root->child[i]=NULL;
+		}
+	}
+}
+
+//function to insert word into Trie if it doesn't exist.  If it does exist, 
+//simply update the isWord value to reflect that word in the Trie
+void insertword(char *temparr, node *root){
+	int i, j, k=strlen(temparr);
+	node *temp=root;
+	for (i=0; i<k; i++){
+		j=CHAR_TO_INDEX(temparr[i]);
+		if(!temp->child[j]){
+			temp->numChild++;
+			temp->child[j]=makeNode(temparr[i]);
+
+		}
+		
+		temp=temp->child[j];
+	}
+	temp->isword=1;
+}
+
+//function to match a word retrieved from the data file and see if dictionary consists of that word
+//if it exists in dictionary, function updates occurrence value
+//also checks for prefix value, if it is prefix, function updates prefix value
+void matchStr(char*temparr){
+	int i, j, k=strlen(temparr);
+	node* temp=root;
+	for (i=0; i<k; i++){
+		j=CHAR_TO_INDEX(temparr[i]);
+		if(temp->child[j]){
+			if(temp->child[j]->isword&&i==strlen(temparr)-1){
+				temp->child[j]->occur++;
+				break;
+			
+			}
+			else if(temp->child[j]->isword&&i<strlen(temparr)-1){
+				temp->child[j]->prefix++;
+				temp=temp->child[j];
+				continue;
+				
+			}
+			else{
+				temp=temp->child[j];
+			
+			}
+			
+		}
+	}
+	
+}
+
+//function to read words from dictionary file and assemble them
+//to be inserted into trie
+void readDict(FILE *dict){
+	char temp= '\0';
+	//struct node *root=(struct node*)malloc(sizeof(struct node));
+	while (fscanf(dict, "%c", &temp)!=EOF){
+		
+		if(isalpha(temp)){
+			
+			temp=tolower(temp);
+			char *temparr=(char*)malloc(sizeof(char)*2);
+			temparr[0]=temp;
+			temparr[1]='\0';
+			
+			while(fscanf(dict, "%c", &temp)!=EOF){
+				
+				if(isalpha(temp)){
+					
+					temp=tolower(temp);
+					int length=strlen(temparr);
+					temparr=(char*)realloc(temparr, (length+2)*sizeof(char));
+					temparr[length]=temp;
+					temparr[length+1]='\0';
+				}
+				else{
+					insertword(temparr, root);
+					break;
+				}
+			}
+		}
+	}
+}
+//retrieves a word from the data file and assembles it so that
+//the words in the dictionary file can be compared to it
+void readData(FILE *data){
+	char temp= '\0';
+	while (fscanf(data, "%c", &temp)!=EOF){
+		
+		if(isalpha(temp)){
+			
+			temp=tolower(temp);
+			char *temparr=(char*)malloc(sizeof(char)*2);
+			temparr[0]=temp;
+			temparr[1]='\0';
+			
+			while(fscanf(data, "%c", &temp)!=EOF){
+				
+				if(isalpha(temp)){
+					
+					temp=tolower(temp);
+					int length=strlen(temparr);
+					temparr=(char*)realloc(temparr, (length+2)*sizeof(char));
+					temparr[length]=temp;
+					temparr[length+1]='\0';
+				}
+				else{
+					matchStr(temparr);
+					free(temparr);
+					break;
+				}
+			}
+		}
+	}
+}
+
+//function to assemble all the variables needed to
+//create the correct filename
+void printResult(){
+	count++;
+	char filename[16];
+	sprintf(filename, "out%d.txt", count);
+	FILE* current=fopen(filename, "w");
+	outputFile=current;
+	char word[200];
+	traverse(root, word, 0);
+	fclose(outputFile);
+	
+}
+
+int main(int argc, char** argv){
+	
+	FILE *fp;
+	fp=fopen(argv[1], "r");
+	char dictarr[10], datarr[10];
+	count=0;
+	
+	while(fscanf(fp, "%s %s", dictarr, datarr)!=EOF){
+		FILE *dict=fopen(dictarr, "r");
+		FILE *data=fopen(datarr, "r");
+		
+		if(dict==NULL){
+			printf("Error \n");
+			exit(0);
+		}
+		
+		root=(node*)malloc(sizeof(node));
+		readDict(dict);
+		readData(data);
+		printResult();
+		traverseToFree(root);
+		free(root);
+		fclose(dict);
+		fclose(data);
+	}
+	
+		
+	return 1;
+
+}
